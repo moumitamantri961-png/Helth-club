@@ -1,0 +1,8 @@
+{
+  "name": "NutriSnap AI",
+  "description": "Snap a photo of your food to get instant nutritional analysis and track your daily intake.",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": []
+}

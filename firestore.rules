@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Primitive Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+
+    // 2. Validation Blueprint for FoodScan
+    function isValidFoodScan(data) {
+      return data.foodName is string && data.foodName.size() <= 100 &&
+             data.calories is number && data.calories >= 0 &&
+             data.proteinG is number && data.proteinG >= 0 &&
+             data.fatG is number && data.fatG >= 0 &&
+             data.carbohydratesG is number && data.carbohydratesG >= 0 &&
+             data.sugarG is number && data.sugarG >= 0 &&
+             data.sodiumMg is number && data.sodiumMg >= 0 &&
+             data.fiberG is number && data.fiberG >= 0 &&
+             (data.allergens == null || (data.allergens is list && data.allergens.size() <= 10)) &&
+             data.healthTip is string && data.healthTip.size() <= 500 &&
+             data.imageUrl is string && data.imageUrl.size() <= 1048576 && // 1MB limit for base64
+             data.timestamp is timestamp &&
+             isOwner(data.userId);
+    }
+
+    match /scans/{scanId} {
+      allow get: if isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() && 
+                    isValidId(scanId) &&
+                    isValidFoodScan(incoming()) &&
+                    incoming().timestamp == request.time;
+      
+      allow update: if false; // Scans are immutable in this app
+      
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+  }
+}

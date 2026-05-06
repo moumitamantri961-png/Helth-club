@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "FoodScan": {
+      "title": "Food Scan",
+      "description": "Represents a single food nutritional analysis scan",
+      "type": "object",
+      "properties": {
+        "foodName": {
+          "type": "string",
+          "description": "The name of the detected food"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["High", "Medium", "Low"],
+          "description": "AI confidence level"
+        },
+        "portionSize": {
+          "type": "string",
+          "description": "Estimated portion size"
+        },
+        "calories": {
+          "type": "number",
+          "description": "Calories in kcal"
+        },
+        "proteinG": {
+          "type": "number",
+          "description": "Protein in grams"
+        },
+        "fatG": {
+          "type": "number",
+          "description": "Fat in grams"
+        },
+        "carbohydratesG": {
+          "type": "number",
+          "description": "Carbohydrates in grams"
+        },
+        "sugarG": {
+          "type": "number",
+          "description": "Sugar in grams"
+        },
+        "sodiumMg": {
+          "type": "number",
+          "description": "Sodium in milligrams"
+        },
+        "fiberG": {
+          "type": "number",
+          "description": "Fiber in grams"
+        },
+        "allergens": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of potential allergens"
+        },
+        "healthTip": {
+          "type": "string",
+          "description": "Health suggestion"
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "Base64 thumbnail or storage URL"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the scan was performed"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID of the user who performed the scan"
+        }
+      },
+      "required": ["foodName", "calories", "timestamp", "userId"]
+    }
+  },
+  "firestore": {
+    "scans": {
+      "schema": "FoodScan",
+      "description": "Collection of nutritional analysis results"
+    }
+  }
+}
