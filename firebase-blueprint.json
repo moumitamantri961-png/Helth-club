@@ -6,16 +6,65 @@
       "type": "object",
       "properties": {
         "displayName": { "type": "string" },
-        "goal": { "type": "string", "enum": ["Lose Weight", "Gain Muscle", "Maintain"] },
+        "goal": { "type": "string", "enum": ["Gain muscle", "Lose fat", "Weight gain", "Weight loss", "Athletic performance", "General health"] },
+        "age": { "type": "number" },
+        "gender": { "type": "string" },
+        "height": { "type": "number" },
+        "weight": { "type": "number" },
+        "activityLevel": { "type": "string" },
+        "workoutsPerWeek": { "type": "number" },
+        "dietType": { "type": "string" },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "budget": { "type": "string" },
+        "location": { "type": "string" },
+        "sleepDuration": { "type": "number" },
+        "injuries": { "type": "string" },
+        "medicalRestrictions": { "type": "string" },
+        "dailySchedule": { "type": "string" },
         "dailyCalorieGoal": { "type": "number" },
         "dailyProteinGoal": { "type": "number" },
-        "dailyWaterGoal": { "type": "number", "description": "In ml" },
-        "currentWeight": { "type": "number" },
-        "targetWeight": { "type": "number" },
-        "unitSystem": { "type": "string", "enum": ["metric", "imperial"] },
-        "onboardingComplete": { "type": "boolean" }
+        "dailyCarbsGoal": { "type": "number" },
+        "dailyFatGoal": { "type": "number" },
+        "dailyWaterGoal": { "type": "number" },
+        "onboardingComplete": { "type": "boolean" },
+        "coachOnboardingComplete": { "type": "boolean" },
+        "isPremium": { "type": "boolean" }
       },
-      "required": ["goal", "dailyCalorieGoal", "onboardingComplete"]
+      "required": ["goal", "onboardingComplete"]
+    },
+    "MealPlan": {
+      "title": "Meal Plan",
+      "properties": {
+        "userId": { "type": "string" },
+        "meals": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "name": { "type": "string" },
+              "calories": { "type": "number" },
+              "protein": { "type": "number" },
+              "carbs": { "type": "number" },
+              "fat": { "type": "number" },
+              "portion": { "type": "string" },
+              "healthScore": { "type": "number" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "ProgressLog": {
+      "title": "Progress Log",
+      "properties": {
+        "userId": { "type": "string" },
+        "weight": { "type": "number" },
+        "photoUrl": { "type": "string" },
+        "energyLevel": { "type": "number" },
+        "sleepHours": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
     },
     "FoodScan": {
       "title": "Food Scan",
@@ -47,6 +96,16 @@
         "timestamp": { "type": "string", "format": "date-time" },
         "userId": { "type": "string" }
       }
+    },
+    "CoachChat": {
+      "title": "Coach Chat Message",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["coach", "user"] },
+        "message": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "role", "message", "timestamp"]
     }
   },
   "firestore": {
@@ -61,6 +120,18 @@
     "water": {
         "schema": "WaterLog",
         "description": "Daily hydration tracking"
+    },
+    "mealPlans": {
+        "schema": "MealPlan",
+        "description": "Personalized AI generated meal plans"
+    },
+    "progress": {
+        "schema": "ProgressLog",
+        "description": "Weekly progress tracking"
+    },
+    "coach_chats": {
+        "schema": "CoachChat",
+        "description": "Messages exchanged between user and AI coach"
     }
   }
 }

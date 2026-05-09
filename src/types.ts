@@ -28,19 +28,53 @@ export enum Page {
   ANALYSIS = 'analysis',
   HISTORY = 'history',
   SETTINGS = 'settings',
-  ONBOARDING = 'onboarding'
+  ONBOARDING = 'onboarding',
+  COACH = 'coach',
+  PROGRESS = 'progress'
 }
 
 export interface UserProfile {
   uid: string;
   displayName: string;
-  goal: 'Lose Weight' | 'Gain Muscle' | 'Maintain';
+  goal: string;
+  age?: number;
+  gender?: string;
+  height?: number;
+  weight?: number;
+  activityLevel?: string;
+  workoutsPerWeek?: number;
+  dietType?: string;
+  allergies?: string[];
+  budget?: string;
+  location?: string;
+  sleepDuration?: number;
+  injuries?: string;
+  medicalRestrictions?: string;
+  dailySchedule?: string;
   dailyCalorieGoal: number;
   dailyProteinGoal: number;
+  dailyCarbsGoal?: number;
+  dailyFatGoal?: number;
   dailyWaterGoal: number;
-  currentWeight?: number;
-  targetWeight?: number;
   onboardingComplete: boolean;
+  coachOnboardingComplete?: boolean;
+  isPremium?: boolean;
+}
+
+export interface MealPlan {
+  id?: string;
+  userId: string;
+  meals: {
+    type: string;
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    portion: string;
+    ingredients?: string[];
+  }[];
+  createdAt: any;
 }
 
 export interface WaterLog {

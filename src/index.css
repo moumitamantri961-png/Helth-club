@@ -5,29 +5,68 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-serif: "Playfair Display", ui-serif, Georgia, serif;
   
-  --color-sage-50: #f4f7f4;
-  --color-sage-100: #e6ede6;
-  --color-sage-200: #ccd9cc;
-  --color-sage-500: #7a947a;
-  --color-sage-600: #5f7a5f;
-  --color-sage-700: #4a5f4a;
-  --color-sage-800: #3a4b3a;
-  --color-sage-900: #2b382b;
+  --color-brand: #ccff00;
+  --color-brand-dark: #a3cc00;
+
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-card-light: var(--card-light);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-text-muted: var(--text-muted);
 }
 
 @layer base {
+  :root {
+    --bg: #ffffff;
+    --card: #f5f5f5;
+    --card-light: #eeeeee;
+    --text: #0a0a0a;
+    --text-dim: #666666;
+    --text-muted: #999999;
+  }
+
+  [data-theme='dark'] {
+    --bg: #0a0a0a;
+    --card: #141414;
+    --card-light: #1c1c1c;
+    --text: #ffffff;
+    --text-dim: #888888;
+    --text-muted: #555555;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #0a0a0a;
+      --card: #141414;
+      --card-light: #1c1c1c;
+      --text: #ffffff;
+      --text-dim: #888888;
+      --text-muted: #555555;
+    }
+  }
+
+  [data-theme='light'] {
+    --color-bg: #ffffff;
+    --color-card: #f5f5f5;
+    --color-card-light: #eeeeee;
+    --color-text: #0a0a0a;
+    --color-text-dim: #666666;
+    --color-text-muted: #999999;
+  }
+
   body {
-    @apply bg-sage-50 text-sage-900 font-sans antialiased;
+    @apply bg-bg text-text font-sans antialiased transition-colors duration-300;
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+    @apply bg-card/60 backdrop-blur-xl border border-white/5 shadow-2xl;
   }
   
-  .brand-shadow {
-    box-shadow: 0 10px 40px -10px rgba(43, 56, 43, 0.15);
+  .neon-glow {
+    box-shadow: 0 0 15px rgba(204, 255, 0, 0.3);
   }
   
   .safe-area-bottom {
