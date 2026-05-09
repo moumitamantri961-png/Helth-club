@@ -56,6 +56,10 @@ export interface UserProfile {
   dailyCarbsGoal?: number;
   dailyFatGoal?: number;
   dailyWaterGoal: number;
+  goalWeight?: number;
+  bmi?: number;
+  bmr?: number;
+  tdee?: number;
   onboardingComplete: boolean;
   coachOnboardingComplete?: boolean;
   isPremium?: boolean;
