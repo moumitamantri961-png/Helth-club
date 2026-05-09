@@ -27,5 +27,25 @@ export enum Page {
   HOME = 'home',
   ANALYSIS = 'analysis',
   HISTORY = 'history',
-  SETTINGS = 'settings'
+  SETTINGS = 'settings',
+  ONBOARDING = 'onboarding'
+}
+
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  goal: 'Lose Weight' | 'Gain Muscle' | 'Maintain';
+  dailyCalorieGoal: number;
+  dailyProteinGoal: number;
+  dailyWaterGoal: number;
+  currentWeight?: number;
+  targetWeight?: number;
+  onboardingComplete: boolean;
+}
+
+export interface WaterLog {
+  id?: string;
+  amountMl: number;
+  timestamp: any;
+  userId: string;
 }

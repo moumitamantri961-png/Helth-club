@@ -18,17 +18,24 @@ service cloud.firestore {
     function isValidFoodScan(data) {
       return data.foodName is string && data.foodName.size() <= 100 &&
              data.calories is number && data.calories >= 0 &&
-             data.proteinG is number && data.proteinG >= 0 &&
-             data.fatG is number && data.fatG >= 0 &&
-             data.carbohydratesG is number && data.carbohydratesG >= 0 &&
-             data.sugarG is number && data.sugarG >= 0 &&
-             data.sodiumMg is number && data.sodiumMg >= 0 &&
-             data.fiberG is number && data.fiberG >= 0 &&
-             (data.allergens == null || (data.allergens is list && data.allergens.size() <= 10)) &&
-             data.healthTip is string && data.healthTip.size() <= 500 &&
-             data.imageUrl is string && data.imageUrl.size() <= 1048576 && // 1MB limit for base64
+             (!('proteinG' in data) || data.proteinG is number) &&
+             (!('fatG' in data) || data.fatG is number) &&
+             (!('carbohydratesG' in data) || data.carbohydratesG is number) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 2097152)) && // 2MB limit
              data.timestamp is timestamp &&
              isOwner(data.userId);
+    }
+
+    function isValidProfile(data) {
+      return data.dailyCalorieGoal is number && 
+             data.goal in ["Lose Weight", "Gain Muscle", "Maintain"] &&
+             data.onboardingComplete == true &&
+             isOwner(data.uid);
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create, update: if isOwner(userId) && isValidProfile(incoming());
     }
 
     match /scans/{scanId} {
@@ -40,8 +47,21 @@ service cloud.firestore {
                     isValidFoodScan(incoming()) &&
                     incoming().timestamp == request.time;
       
-      allow update: if false; // Scans are immutable in this app
-      
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+    }
+
+    function isValidWaterLog(data) {
+      return data.amountMl is number && data.amountMl > 0 &&
+             data.timestamp is timestamp &&
+             isOwner(data.userId);
+    }
+
+    match /water/{logId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && 
+                    isValidId(logId) &&
+                    isValidWaterLog(incoming()) &&
+                    incoming().timestamp == request.time;
       allow delete: if isSignedIn() && isOwner(existing().userId);
     }
   }

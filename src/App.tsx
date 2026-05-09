@@ -25,7 +25,14 @@ import {
   AlertCircle,
   CheckCircle2,
   Image as ImageIcon,
-  User as UserIcon
+  User as UserIcon,
+  Plus,
+  Minus,
+  GlassWater,
+  Target,
+  ArrowRight,
+  TrendingUp,
+  Scale
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -37,24 +44,37 @@ import {
   onSnapshot, 
   deleteDoc, 
   doc, 
+  setDoc,
   serverTimestamp,
-  Timestamp
+  Timestamp,
+  getDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, signIn, signOut } from './lib/firebase';
 import { analyzeFoodImage } from './services/geminiService';
-import { Confidence, FoodScan, Page } from './types';
+import { Confidence, FoodScan, Page, UserProfile, WaterLog } from './types';
 import { cn, formatTimestamp } from './lib/utils';
 import ReactMarkdown from 'react-markdown';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<Page>(Page.HOME);
   const [scans, setScans] = useState<FoodScan[]>([]);
+  const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<FoodScan | null>(null);
+  
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingData, setOnboardingData] = useState<Partial<UserProfile>>({
+    goal: 'Maintain',
+    dailyCalorieGoal: 2000,
+    dailyProteinGoal: 100,
+    dailyWaterGoal: 2500,
+    onboardingComplete: false
+  });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,8 +82,20 @@ export default function App() {
   const [showCamera, setShowCamera] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      if (u) {
+        const profileDoc = await getDoc(doc(db, 'users', u.uid));
+        if (profileDoc.exists()) {
+          const pData = profileDoc.data() as UserProfile;
+          setProfile(pData);
+          if (!pData.onboardingComplete) {
+            setCurrentPage(Page.ONBOARDING);
+          }
+        } else {
+          setCurrentPage(Page.ONBOARDING);
+        }
+      }
       setLoading(false);
     });
     return () => unsubscribe();
@@ -71,17 +103,81 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const q = query(
+    const scansQ = query(
       collection(db, 'scans'),
       where('userId', '==', user.uid),
       orderBy('timestamp', 'desc')
     );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unscans = onSnapshot(scansQ, (snapshot) => {
       const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FoodScan));
       setScans(docs);
     });
-    return () => unsubscribe();
+
+    const waterQ = query(
+      collection(db, 'water'),
+      where('userId', '==', user.uid),
+      orderBy('timestamp', 'desc')
+    );
+    const unwater = onSnapshot(waterQ, (snapshot) => {
+      const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WaterLog));
+      setWaterLogs(docs);
+    });
+
+    return () => {
+      unscans();
+      unwater();
+    };
   }, [user]);
+
+  const saveOnboarding = async () => {
+    if (!user) return;
+    const fullProfile: UserProfile = {
+      ...onboardingData,
+      uid: user.uid,
+      displayName: user.displayName || 'User',
+      onboardingComplete: true,
+    } as UserProfile;
+    
+    try {
+      await setDoc(doc(db, 'users', user.uid), fullProfile);
+      setProfile(fullProfile);
+      setCurrentPage(Page.HOME);
+    } catch (error) {
+      console.error("Onboarding Save Failed:", error);
+      alert("Failed to save profile. Please check your connection.");
+    }
+  };
+
+  const addWater = async (amount: number) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'water'), {
+        amountMl: amount,
+        timestamp: serverTimestamp(),
+        userId: user.uid
+      });
+    } catch (error) {
+      console.error("Water Log Failed:", error);
+    }
+  };
+
+  const caloriesToday = scans.reduce((acc, s) => {
+    const d = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
+    if (d.toDateString() === new Date().toDateString()) return acc + s.calories;
+    return acc;
+  }, 0);
+
+  const waterToday = waterLogs.reduce((acc, w) => {
+    const d = w.timestamp?.toDate ? w.timestamp.toDate() : new Date(w.timestamp);
+    if (d.toDateString() === new Date().toDateString()) return acc + w.amountMl;
+    return acc;
+  }, 0);
+
+  const proteinToday = scans.reduce((acc, s) => {
+    const d = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
+    if (d.toDateString() === new Date().toDateString()) return acc + s.proteinG;
+    return acc;
+  }, 0);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -200,107 +296,201 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-sage-50 pb-24">
       {/* Header */}
       <header className="sticky top-0 z-50 flex items-center justify-between bg-sage-50/80 p-4 backdrop-blur-md">
-        <h2 className="font-serif text-xl font-bold text-sage-900">NutriSnap</h2>
+        <div className="flex flex-col">
+          <h2 className="font-serif text-xl font-bold text-sage-900">NutriSnap</h2>
+          <span className="text-[10px] uppercase tracking-widest text-sage-500 font-bold">Pro AI</span>
+        </div>
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium text-sage-600">Daily Goal: 2000 kcal</span>
-          <button onClick={signOut} className="rounded-full p-2 hover:bg-sage-100">
-            <LogOut className="h-5 w-5 text-sage-500" />
+          <div className="flex flex-col items-end">
+            <span className="text-xs font-bold text-sage-900">{profile?.dailyCalorieGoal || 2000} kcal</span>
+            <span className="text-[10px] text-sage-500">Daily Budget</span>
+          </div>
+          <button onClick={() => setCurrentPage(Page.SETTINGS)} className="rounded-full bg-white p-2 shadow-sm">
+            <UserIcon className="h-5 w-5 text-sage-500" />
           </button>
         </div>
       </header>
 
       <main className="flex-1 overflow-x-hidden p-4">
         <AnimatePresence mode="wait">
+          {currentPage === Page.ONBOARDING && (
+            <motion.div 
+              key="onboarding"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.1 }}
+              className="flex flex-col justify-center min-h-[70vh] space-y-8 p-4 text-center"
+            >
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl bg-sage-900 text-white shadow-xl">
+                 <Target className="h-10 w-10" />
+              </div>
+              
+              {onboardingStep === 0 ? (
+                <div className="space-y-6">
+                  <h3 className="font-serif text-3xl font-bold text-sage-900">Choose Your Path</h3>
+                  <div className="grid gap-3">
+                    {['Lose Weight', 'Gain Muscle', 'Maintain'].map((goal) => (
+                      <button 
+                        key={goal}
+                        onClick={() => {
+                          setOnboardingData({ ...onboardingData, goal: goal as any });
+                          setOnboardingStep(1);
+                        }}
+                        className="flex items-center justify-between rounded-2xl bg-white p-5 border-2 border-transparent hover:border-sage-900 transition-all text-left shadow-sm"
+                      >
+                        <span className="font-bold text-lg">{goal}</span>
+                        <ChevronRight className="text-sage-300" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <h3 className="font-serif text-3xl font-bold text-sage-900">Set Your Targets</h3>
+                  <div className="space-y-4">
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                       <label className="block text-xs font-bold text-sage-400 uppercase mb-2">Daily Calorie Goal</label>
+                       <input 
+                        type="number" 
+                        value={onboardingData.dailyCalorieGoal}
+                        onChange={(e) => setOnboardingData({...onboardingData, dailyCalorieGoal: parseInt(e.target.value)})}
+                        className="w-full text-2xl font-bold text-center focus:outline-none"
+                       />
+                    </div>
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                       <label className="block text-xs font-bold text-sage-400 uppercase mb-2">Daily Protein (g)</label>
+                       <input 
+                        type="number" 
+                        value={onboardingData.dailyProteinGoal}
+                        onChange={(e) => setOnboardingData({...onboardingData, dailyProteinGoal: parseInt(e.target.value)})}
+                        className="w-full text-2xl font-bold text-center focus:outline-none"
+                       />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={saveOnboarding}
+                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-sage-900 py-5 font-bold text-white shadow-xl hover:bg-sage-800 transition-all active:scale-95"
+                  >
+                    Start My Journey
+                    <ArrowRight className="h-5 w-5" />
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {currentPage === Page.HOME && (
             <motion.div 
               key="home"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="space-y-6"
+              className="space-y-6 pb-12"
             >
-              {/* Daily Stats Summary */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-3xl bg-white p-5 shadow-sm">
-                  <Flame className="mb-2 h-6 w-6 text-orange-500" />
-                  <div className="text-2xl font-bold">
-                    {scans.reduce((acc, s) => {
-                      const d = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
-                      if (d.toDateString() === new Date().toDateString()) return acc + s.calories;
-                      return acc;
-                    }, 0)}
+              {/* Daily Stats Summary Dashboard */}
+              <div className="relative overflow-hidden rounded-[2.5rem] bg-white p-6 shadow-md border border-white">
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="relative mb-6">
+                    {/* Ring Progress */}
+                    <div className="h-44 w-44 rounded-full border-[10px] border-sage-50" />
+                    <svg className="absolute inset-0 h-44 w-44 -rotate-90">
+                      <circle 
+                        cx="88" cy="88" r="79" 
+                        fill="transparent" 
+                        stroke="currentColor" 
+                        strokeWidth="10" 
+                        strokeDasharray={496}
+                        strokeDashoffset={496 - (496 * Math.min(caloriesToday / (profile?.dailyCalorieGoal || 2000), 1))}
+                        className="text-sage-900 transition-all duration-1000 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-4xl font-bold text-sage-900">{Math.max(0, (profile?.dailyCalorieGoal || 2000) - caloriesToday)}</span>
+                      <span className="text-[10px] uppercase font-bold text-sage-400 tracking-wider">Kcal Left</span>
+                    </div>
                   </div>
-                  <div className="text-xs text-sage-500 uppercase tracking-wider">Kcal Today</div>
+
+                  <div className="grid w-full grid-cols-3 gap-2">
+                    <MiniStat label="Protein" current={proteinToday} target={profile?.dailyProteinGoal || 100} unit="g" icon={<Beef className="w-3 h-3 text-red-500" />} />
+                    <MiniStat label="Carbs" current={scans.reduce((a, s) => a + (s.carbohydratesG || 0), 0)} target={250} unit="g" icon={<Dna className="w-3 h-3 text-blue-500" />} />
+                    <MiniStat label="Fats" current={scans.reduce((a, s) => a + (s.fatG || 0), 0)} target={70} unit="g" icon={<Droplets className="w-3 h-3 text-yellow-500" />} />
+                  </div>
                 </div>
-                <div className="rounded-3xl bg-white p-5 shadow-sm">
-                  <Beef className="mb-2 h-6 w-6 text-red-500" />
-                  <div className="text-2xl font-bold">
-                    {scans.reduce((acc, s) => {
-                      const d = s.timestamp?.toDate ? s.timestamp.toDate() : new Date(s.timestamp);
-                      if (d.toDateString() === new Date().toDateString()) return acc + s.proteinG;
-                      return acc;
-                    }, 0).toFixed(1)}g
+              </div>
+
+              {/* Water Tracking Card */}
+              <div className="rounded-[2.5rem] bg-blue-50 p-6 flex items-center justify-between border border-blue-100 shadow-sm">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500 text-white shadow-lg">
+                    <GlassWater className="h-6 w-6" />
                   </div>
-                  <div className="text-xs text-sage-500 uppercase tracking-wider">Protein Today</div>
+                  <div>
+                    <h4 className="font-bold text-blue-900">Hydration</h4>
+                    <p className="text-sm font-medium text-blue-600">{waterToday} / {profile?.dailyWaterGoal || 2500} ml</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                   <button 
+                    onClick={() => addWater(250)}
+                    className="flex h-10 items-center gap-1 rounded-xl bg-white px-3 font-bold text-blue-600 shadow-sm active:scale-95 transition-all text-xs"
+                   >
+                     <Plus className="h-4 w-4" />
+                     250ml
+                   </button>
                 </div>
               </div>
 
               {/* Main Action Card */}
-              <div className="relative overflow-hidden rounded-[2.5rem] bg-sage-900 p-8 text-white">
+              <div className="relative overflow-hidden rounded-[2.5rem] bg-sage-900 p-8 text-white shadow-2xl">
                 <div className="relative z-10">
-                  <h3 className="mb-2 font-serif text-3xl italic">What's on your plate?</h3>
-                  <p className="mb-8 opacity-70">Capture or upload a photo to see the metrics.</p>
+                  <h3 className="mb-2 font-serif text-2xl font-bold">Snap Your Meal</h3>
+                  <p className="mb-6 opacity-60 text-sm">Our AI detects ingredients and tracks metrics in seconds.</p>
                   
-                  <div className="flex gap-4">
+                  <div className="flex gap-3">
                     <button 
                       onClick={startCamera}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white py-4 text-sage-900 font-bold active:scale-95 transition-transform"
+                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-white py-4 text-sage-900 font-bold active:scale-95 transition-transform shadow-lg"
                     >
                       <Camera className="h-5 w-5" />
                       Camera
                     </button>
                     <button 
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-sage-800 py-4 text-white font-bold active:scale-95 transition-transform"
+                      className="flex items-center justify-center rounded-2xl bg-sage-800 px-6 py-4 text-white font-bold active:scale-95 transition-transform"
                     >
                       <Upload className="h-5 w-5" />
-                      Upload
                     </button>
                   </div>
                 </div>
-                <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-sage-800 opacity-20 blur-3xl" />
+                <div className="absolute -right-10 -bottom-10 h-40 w-40 rounded-full bg-white opacity-5 blur-3xl" />
               </div>
 
-              {/* Recent History */}
+              {/* Recent History Grid */}
               <section>
                 <div className="mb-4 flex items-center justify-between">
-                  <h4 className="font-bold">Recent Scans</h4>
-                  <button onClick={() => setCurrentPage(Page.HISTORY)} className="text-sm font-medium text-sage-600">View All</button>
+                  <h4 className="font-bold text-sage-900">Last 24 Hours</h4>
+                  <button onClick={() => setCurrentPage(Page.HISTORY)} className="text-xs font-bold text-sage-500 uppercase tracking-widest">See History</button>
                 </div>
-                <div className="space-y-3">
-                  {scans.slice(0, 3).map((scan) => (
+                <div className="grid grid-cols-2 gap-4">
+                  {scans.slice(0, 2).map((scan) => (
                     <div 
                       key={scan.id} 
                       onClick={() => {
                         setLastResult(scan);
                         setCurrentPage(Page.ANALYSIS);
                       }}
-                      className="flex items-center gap-4 rounded-2xl bg-white p-3 shadow-sm active:bg-sage-50 transition-colors"
+                      className="flex flex-col rounded-3xl bg-white p-2 shadow-sm active:scale-[0.98] transition-all"
                     >
-                      <img src={scan.imageUrl} className="h-16 w-16 rounded-xl object-cover" alt={scan.foodName} />
-                      <div className="flex-1">
-                        <div className="font-bold">{scan.foodName}</div>
-                        <div className="text-xs text-sage-500">{formatTimestamp(scan.timestamp)}</div>
-                      </div>
-                      <div className="text-right">
-                        <div className="font-bold text-sage-700">{scan.calories} kcal</div>
-                        <div className="text-[10px] uppercase text-sage-400 font-semibold">{scan.confidence} Match</div>
+                      <img src={scan.imageUrl} className="aspect-square w-full rounded-2xl object-cover mb-3" alt={scan.foodName} />
+                      <div className="px-2 pb-2">
+                        <div className="font-bold text-sm truncate">{scan.foodName}</div>
+                        <div className="text-xs font-bold text-sage-500">{scan.calories} kcal</div>
                       </div>
                     </div>
                   ))}
                   {scans.length === 0 && (
-                    <div className="rounded-2xl border-2 border-dashed border-sage-200 py-12 text-center text-sage-400">
-                      No scans yet. Start by snapping a photo!
+                    <div className="col-span-2 rounded-3xl border-2 border-dashed border-sage-200 py-12 text-center text-sage-400">
+                      Snap a photo to start tracking
                     </div>
                   )}
                 </div>
@@ -553,6 +743,26 @@ export default function App() {
 
       <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
       <canvas ref={canvasRef} className="hidden" />
+    </div>
+  );
+}
+
+function MiniStat({ label, current, target, unit, icon }: { label: string, current: number, target: number, unit: string, icon: React.ReactNode }) {
+  const percentage = Math.min(Math.round((current / target) * 100), 100);
+  return (
+    <div className="flex flex-col items-center">
+       <div className="mb-1 flex items-center gap-1">
+         {icon}
+         <span className="text-[8px] font-bold uppercase text-sage-400">{label}</span>
+       </div>
+       <div className="text-xs font-bold text-sage-900">{Math.round(current)}{unit}</div>
+       <div className="mt-1 h-1 w-full max-w-[40px] rounded-full bg-sage-50 overflow-hidden">
+         <motion.div 
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          className="h-full bg-sage-400"
+         />
+       </div>
     </div>
   );
 }

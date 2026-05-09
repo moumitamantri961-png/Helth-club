@@ -17,6 +17,26 @@
 
 @layer base {
   body {
-    @apply bg-sage-50 text-sage-900 font-sans;
+    @apply bg-sage-50 text-sage-900 font-sans antialiased;
   }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-md border border-white/20 shadow-xl;
+  }
+  
+  .brand-shadow {
+    box-shadow: 0 10px 40px -10px rgba(43, 56, 43, 0.15);
+  }
+  
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Custom Scrollbar for a cleaner mobile feel */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
 }
