@@ -56,7 +56,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { db, auth, signIn, signOut } from './lib/firebase';
+import { db, auth, signIn, signOut, handleRedirectResult } from './lib/firebase';
 
 // Test Firestore connection on boot
 const testConnection = async () => {
@@ -216,19 +216,58 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => {
+    console.log("Auth initialized, watching state...");
+    
+    // Check for redirect result on boot
+    const checkRedirect = async () => {
+       try {
+          const result = await handleRedirectResult();
+          if (result?.user) {
+             console.log("Redirect sign-in successful:", result.user.email);
+          }
+       } catch (error) {
+          console.error("Redirect sign-in error:", error);
+       }
+    };
+    checkRedirect();
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
+      console.log("Auth state change detected. User:", u?.email || "null");
+      
       if (u) {
-        const profileDoc = await getDoc(doc(db, 'users', u.uid));
-        if (profileDoc.exists()) {
-          const pData = profileDoc.data() as UserProfile;
-          setProfile(pData);
-          if (!pData.onboardingComplete) {
+        setLoading(true);
+        try {
+          console.log("Fetching profile for UID:", u.uid);
+          const profileDoc = await getDoc(doc(db, 'users', u.uid));
+          if (profileDoc.exists()) {
+            const pData = profileDoc.data() as UserProfile;
+            console.log("Profile found:", pData.displayName);
+            setProfile(pData);
+            if (pData.onboardingComplete) {
+              console.log("Profile verified, entering dashboard.");
+              setCurrentPage(Page.HOME);
+            } else {
+              console.log("Onboarding incomplete, navigating to onboarding.");
+              setCurrentPage(Page.ONBOARDING);
+            }
+          } else {
+            console.warn("Profile document does not exist for existing user.");
             setCurrentPage(Page.ONBOARDING);
           }
-        } else {
-          setCurrentPage(Page.ONBOARDING);
+        } catch (error) {
+          console.error("Critical error fetching user profile:", error);
+          setToast({ message: "Profile sync failed. Check your connection.", type: 'warn' });
+          // If we can't fetch profile, we shouldn't necessarily block entry if it's a temp network error,
+          // but we need the profile for most things.
         }
+        setUser(u);
+      } else {
+        console.log("No user session. Resetting state.");
+        setUser(null);
+        setProfile(null);
+        // Do not force HOME here if we want to remember where they were, 
+        // but for safety during login screen it's fine.
+        setCurrentPage(Page.HOME);
       }
       setLoading(false);
     });
@@ -445,8 +484,10 @@ Check your dashboard for the full plan!`;
         if (voiceEnabled) speakMessage(finalMsg, coachChat.length + 1);
         setToast({ message: "Body Transformation Plan Generated! 🔥", type: 'success' });
       } catch (err) {
-        console.error(err);
-        setCoachChat(prev => [...prev, { role: 'coach', message: "Oops, something went wrong. Let's try again." }]);
+        console.error("Onboarding Generation/Save Failed:", err);
+        const errorMsg = "I hit a snag calculating your elite plan. This usually happens if your connection is unstable or your goal isn't supported. Can we try finishing this plan again?";
+        setCoachChat(prev => [...prev, { role: 'coach', message: errorMsg }]);
+        setToast({ message: "Plan generation failed. Please try again.", type: 'warn' });
       } finally {
         setIsGeneratingPlan(false);
       }
@@ -696,6 +737,25 @@ Check your dashboard for the full plan!`;
     }
   };
 
+  const [authLoading, setAuthLoading] = useState(false);
+
+  const handleSignIn = async () => {
+    setAuthLoading(true);
+    try {
+      await signIn();
+    } catch (error: any) {
+      console.error("Login failed:", error);
+      setToast({ 
+        message: error.message?.includes('popup-closed-by-user') 
+          ? "Login cancelled. Try again!" 
+          : "Login failed. Check your connection.", 
+        type: 'warn' 
+      });
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-sage-50">
@@ -715,11 +775,18 @@ Check your dashboard for the full plan!`;
           Elite performance nutrition and body transformation, powered by Antigravity AI.
         </p>
         <button 
-          onClick={signIn}
-          className="flex w-full max-w-sm items-center justify-center gap-4 rounded-3xl bg-brand py-5 font-bold text-black transition-all hover:brightness-110 active:scale-95 shadow-xl shadow-brand/20"
+          onClick={handleSignIn}
+          disabled={authLoading}
+          className="flex w-full max-w-sm items-center justify-center gap-4 rounded-3xl bg-brand py-5 font-bold text-black transition-all hover:brightness-110 active:scale-95 shadow-xl shadow-brand/20 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <img src="https://www.google.com/favicon.ico" className="h-5 w-5" alt="Google" />
-          Get Started with Google
+          {authLoading ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
+          ) : (
+            <>
+              <img src="https://www.google.com/favicon.ico" className="h-5 w-5" alt="Google" />
+              Get Started with Google
+            </>
+          )}
         </button>
       </div>
     );

@@ -31,9 +31,13 @@ service cloud.firestore {
     }
 
     function isValidProfile(data) {
-      let goals = ["Build Muscle", "Lose Fat", "Improve Performance", "General Health", "Gain muscle", "Weight gain", "Weight loss", "Athletic performance"];
+      // Inclusive list matching coachService.ts
+      let goals = [
+        "Build Muscle", "Lose Fat", "Improve Performance", "General Health", 
+        "Gain muscle", "Lose fat", "Weight gain", "Weight loss", 
+        "Athletic performance", "General health", "Improve performance", "Lose Weight"
+      ];
       return (data.goal in goals) &&
-             data.onboardingComplete == true &&
              isOwner(data.uid);
     }
 
